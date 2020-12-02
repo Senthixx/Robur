@@ -1,5 +1,5 @@
 --[[
-    Release by Akane V1.0.1  
+    Release by Akane V1.0.2  
 ]]
 
 require("common.log")
@@ -81,6 +81,12 @@ function Lux.LoadMenu()
 			Menu.ColoredText("Harass", 0xFFD700FF, true)
             Menu.Checkbox("HQ", "Use Q", true)
             Menu.Checkbox("HE", "Use E", true) 
+			
+			Menu.NextColumn()
+			Menu.ColoredText("Waveclear", 0xFFD700FF, true)
+			Menu.Checkbox("Wave.UseE", "Use E", true)
+			Menu.Slider("Wave.CastEHC", "E Min. Hit Count", 1, 0, 10, 1)
+			
         end)        
 
         Menu.Separator()
@@ -117,6 +123,10 @@ end
 
 function Lux.GetTargets(range)
     return {TS:GetTarget(range, true)}
+end
+
+function ValidMinion(minion)
+	return minion and minion.IsTargetable and minion.MaxHealth > 6 -- check if not plant or shroom
 end
 
 function Lux.Qdmg()
@@ -176,7 +186,12 @@ function Lux.OnTick()
 			if target then
 				CastE(target,Menu.Get("Combo.EHC"))
 			end
-		end		
+		end	
+
+	elseif Orbwalker.GetMode() == "Waveclear" then
+
+		Waveclear()
+		
 	end
 end
 
@@ -235,6 +250,39 @@ function Lux.KsR()
 		end
 	end
   end
+end
+
+function Waveclear()
+
+	local pPos, pointsE = Player.Position, {}
+	
+	for k, v in pairs(ObjManager.Get("enemy", "minions")) do
+	local minion = v.AsAI
+		if ValidMinion(minion) then
+			local posE = minion:FastPrediction(spells._E.Delay)
+			if posE:Distance(pPos) < spells._E.Range and minion.IsTargetable then
+				table.insert(pointsE, posE)
+			end
+		end
+	end
+	
+	if #pointsE == 0 then
+		for k, v in pairs(ObjManager.Get("neutral", "minions")) do
+			local minion = v.AsAI
+			if ValidMinion(minion) then
+				local posE = minion:FastPrediction(spells._E.Delay)
+				if posE:Distance(pPos) < spells._E.Range then
+					table.insert(pointsE, posE)
+				end   
+			end
+		end
+	end
+	
+	local bestPosE, hitCountE = spells._E:GetBestLinearCastPos(pointsE)
+	if bestPosE and hitCountE >= Menu.Get("Wave.CastEHC")
+		and spells._E:IsReady() and Menu.Get("Wave.UseE") then
+		spells._E:Cast(bestPosE)
+	end
 end
 
 
