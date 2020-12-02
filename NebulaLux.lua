@@ -1,5 +1,5 @@
 --[[
-    First Release By Thorn @ 20.Sept.2020    
+    Release by Akane V1.0.1  
 ]]
 
 require("common.log")
@@ -120,15 +120,15 @@ function Lux.GetTargets(range)
 end
 
 function Lux.Qdmg()
-	return (80 + (spells._Q:GetLevel() - 1) * 60) + (0.3 * Player.TotalAP)
+	return (80 + (spells._Q:GetLevel() - 1) * 45) + (0.6 * Player.TotalAP)
 end
 
 function Lux.Edmg()
-	return (60 + (spells._E:GetLevel() - 1) * 60) + (0.3 * Player.TotalAP)
+	return (60 + (spells._E:GetLevel() - 1) * 45) + (0.6 * Player.TotalAP)
 end
 
 function Lux.Rdmg()
-	return (300 + (spells._R:GetLevel() - 1) * 100) + (1.5 * Player.TotalAP)
+	return (300 + (spells._R:GetLevel() - 1) * 100) + (1 * Player.TotalAP)
 end
 
 function Lux.OnTick()
