@@ -1,5 +1,5 @@
 --[[
-    Release by Akane V1.0.2  
+    Release by Akane V1.0.3
 ]]
 
 require("common.log")
@@ -65,9 +65,10 @@ function Lux.LoadMenu()
         Menu.ColumnLayout("cols", "cols", 2, true, function()
             Menu.ColoredText("Combo", 0xFFD700FF, true)
             Menu.Checkbox("Combo.UseQ", "Use Q", true)
-			Menu.Slider("Combo.QHC", "Q Hit Chance", 0.7, 0, 1, 0.05)
+			Menu.Slider("Combo.QHC", "Q Hit Chance", 0.60, 0, 1, 0.05)
             Menu.Checkbox("Combo.UseE", "Use E", true)
-			Menu.Slider("Combo.EHC", "E Hit Chance", 0.7, 0, 1, 0.05)
+			Menu.Slider("Combo.EHC", "E Hit Chance", 0.60, 0, 1, 0.05)
+			Menu.Checkbox("Combo.Burst", "Burst Combo", false)
 
             Menu.NextColumn()
 
@@ -83,7 +84,10 @@ function Lux.LoadMenu()
             Menu.Checkbox("HE", "Use E", true) 
 			
 			Menu.NextColumn()
+			
 			Menu.ColoredText("Waveclear", 0xFFD700FF, true)
+			Menu.Checkbox("Wave.UseQ", "Use Q", true)
+			Menu.Slider("Wave.CastQHC", "Q Min Hit Count", 1, 0, 10, 1)
 			Menu.Checkbox("Wave.UseE", "Use E", true)
 			Menu.Slider("Wave.CastEHC", "E Min. Hit Count", 1, 0, 10, 1)
 			
@@ -141,6 +145,13 @@ function Lux.Rdmg()
 	return (300 + (spells._R:GetLevel() - 1) * 100) + (1 * Player.TotalAP)
 end
 
+function Lux.BurstCombo()
+	local QBurst = Lux.Qdmg()
+	local EBurst = Lux.Edmg()
+	local RBurst = Lux.Rdmg()
+	return QBurst + EBurst + RBurst
+end
+
 function Lux.OnTick()
 
 	local gameTime = Game.GetTime()
@@ -190,9 +201,9 @@ function Lux.OnTick()
 
 	elseif Orbwalker.GetMode() == "Waveclear" then
 
-		Waveclear()
-		
+		Waveclear()		
 	end
+	if Lux.BurstMode() then return end
 end
 
 function CastQ(target,hitChance)
@@ -254,7 +265,7 @@ end
 
 function Waveclear()
 
-	local pPos, pointsE = Player.Position, {}
+	local pPos, pointsQ, pointsE = Player.Position, {}, {}
 	
 	for k, v in pairs(ObjManager.Get("enemy", "minions")) do
 	local minion = v.AsAI
@@ -266,19 +277,28 @@ function Waveclear()
 		end
 	end
 	
-	if #pointsE == 0 then
+	if #pointsQ == 0 or pointsW == 0 then
 		for k, v in pairs(ObjManager.Get("neutral", "minions")) do
 			local minion = v.AsAI
 			if ValidMinion(minion) then
+				local posQ = minion:FastPrediction(spells._Q.Delay)
 				local posE = minion:FastPrediction(spells._E.Delay)
+				if posQ:Distance(pPos) < spells._Q.Range then
+					table.insert(pointsQ, posQ)
+				end
 				if posE:Distance(pPos) < spells._E.Range then
 					table.insert(pointsE, posE)
-				end   
+				end     
 			end
 		end
 	end
 	
-	local bestPosE, hitCountE = spells._E:GetBestLinearCastPos(pointsE)
+	local bestPosQ, hitCountQ = spells._Q:GetBestCircularCastPos(pointsQ)
+	if bestPosQ and hitCountQ >= Menu.Get("Wave.CastQHC")
+		and spells._Q:IsReady() and Menu.Get("Wave.UseQ") then
+		spells._Q:Cast(bestPosQ)
+	end
+	local bestPosE, hitCountE = spells._E:GetBestCircularCastPos(pointsE)
 	if bestPosE and hitCountE >= Menu.Get("Wave.CastEHC")
 		and spells._E:IsReady() and Menu.Get("Wave.UseE") then
 		spells._E:Cast(bestPosE)
@@ -335,6 +355,24 @@ if Menu.Get("Draw.Q.Enabled") then
     if Menu.Get("Draw.R.Enabled") then
         Renderer.DrawCircle3D(Player.Position, spells._R.Range, 25, 2, Menu.Get("Draw.R.Color"))
     end
+end
+
+function Lux.BurstMode()
+	if Menu.Get("Combo.Burst") then
+		local FullBurst = Lux.BurstCombo()
+		for k,target in ipairs(Lux.GetTargets(1100)) do
+			local Burst = DmgLib.CalculateMagicalDamage(Player, target, FullBurst)
+			local health = spells._R:GetKillstealHealth(target)
+			if Burst > health then
+				if spells._E:IsReady() and spells._E:Cast(target) then
+				end
+				if spells._Q:IsReady() and spells._Q:Cast(target) then
+				end
+				if spells._R:IsReady() and spells._R:Cast(target) then
+				end
+			end
+		end
+	end
 end
 
 
