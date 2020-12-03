@@ -17,7 +17,7 @@ local insert, sort = table.insert, table.sort
 local Spell = _G.Libs.Spell
 
 local spells = {
-	_Q = Spell.Skillshot({
+	Q = Spell.Skillshot({
 		 Slot = Enums.SpellSlots.Q,
 		 Range = 900,
 		 Delay = 0.25,
@@ -26,7 +26,7 @@ local spells = {
 		 Type = "Linear",
 		 Collision = {Heroes=true, Minions=true, WindWall=true},
 	}),
-	_W = Spell.Skillshot({
+	W = Spell.Skillshot({
 		 Slot = Enums.SpellSlots.W,
 		 Range = 900,
 		 Delay = 1.25,
@@ -34,7 +34,7 @@ local spells = {
 		 Radius = 125,
 		 Type = "Circular",
 	}),
-	_E = Spell.Skillshot({
+	E = Spell.Skillshot({
 		 Slot = Enums.SpellSlots.E,
 		 Range = 725,
 		 Delay = 0.5,
@@ -42,7 +42,7 @@ local spells = {
 		 Radius = 375,
 		 Type = "Circular",
 	}),
-	_R = Spell.Targeted({
+	R = Spell.Targeted({
 		 Slot = Enums.SpellSlots.R,
 		 Range = 650,
 		 Collision = {WindWall=true},
@@ -60,11 +60,14 @@ function Veigar.LoadMenu()
         Menu.ColumnLayout("cols", "cols", 2, true, function()
             Menu.ColoredText("Combo", 0xFFD700FF, true)
             Menu.Checkbox("Combo.UseQ", "Use Q", true)
-			Menu.Slider("Combo.QHC", "Q Hit Chance", 0.7, 0, 1, 0.05)
+			Menu.Slider("Combo.QHC", "Q HitChance", 0.7, 0, 1, 0.05) 
 			Menu.Checkbox("Combo.UseW", "Use W", true)
-			Menu.Slider("Combo.WHC", "W Hit Chance", 0.7, 0, 1, 0.05)
-            Menu.Checkbox("CE", "Use E", true)
-			Menu.Slider("Combo.EHC", "E Hit Chance", 0.7, 0, 1, 0.05)
+			Menu.Slider("Combo.WHC", "W Hit Chance", 0.60, 0, 1, 0.05)
+            Menu.Checkbox("Combo.UseE", "Use E", true)
+			Menu.Slider("Combo.EHC", "E Hit Chance", 0.60, 0, 1, 0.05)
+			Menu.Checkbox("Combo.UseR", "Use R", true)
+			Menu.Checkbox("Combo.Burst", "Burst Combo", false)
+			
             Menu.NextColumn()
 
             Menu.ColoredText("KillSteal", 0xFFD700FF, true)
@@ -75,8 +78,9 @@ function Veigar.LoadMenu()
 			Menu.NextColumn()
 			
 			Menu.ColoredText("Harass", 0xFFD700FF, true)
-			Menu.Checkbox("HQ", "Use Q", true) 
-            Menu.Checkbox("HW", "Use W", true) 
+			Menu.Checkbox("Harass.UseQ", "Use Q", true) 
+            Menu.Checkbox("Harass.UseW", "Use W", true)
+			Menu.Slider("Harass.Mana", "Mana Percent", 50, 0, 100)
 			
 			Menu.NextColumn()
 			
@@ -118,6 +122,10 @@ local function CanPerformCast()
     end
 end
 
+function Veigar.IsEnabledAndReady(spell, mode)
+    return Menu.Get(mode .. ".Use"..spell) and spells[spell]:IsReady()
+end
+
 function ValidMinion(minion)
 	return minion and minion.IsTargetable and minion.MaxHealth > 6 -- check if not plant or shroom
 end
@@ -127,15 +135,22 @@ function Veigar.GetTargets(range)
 end
 
 function Veigar.Qdmg()
-	return (80 + (spells._Q:GetLevel() - 1) * 40) + (0.6 * Player.TotalAP)
+	return (80 + (spells.Q:GetLevel() - 1) * 40) + (0.6 * Player.TotalAP)
 end
 
 function Veigar.Wdmg()
-	return (100 + (spells._W:GetLevel() - 1) * 50) + (1 * Player.TotalAP)
+	return (100 + (spells.W:GetLevel() - 1) * 50) + (1 * Player.TotalAP)
 end
 
 function Veigar.Rdmg()
-	return (175 + (spells._W:GetLevel() - 1) * 75) + (0.75 * Player.TotalAP)
+	return (175 + (spells.W:GetLevel() - 1) * 75) + (0.75 * Player.TotalAP)
+end
+
+function Veigar.BurstCombo()
+	local QBurst = Veigar.Qdmg()
+	local WBurst = Veigar.Wdmg()
+	local RBurst = Veigar.Rdmg()
+	return QBurst + WBurst + RBurst
 end
 
 function Veigar.OnTick()
@@ -148,119 +163,155 @@ function Veigar.OnTick()
 	if Veigar.KsW() then return end
 	if Veigar.KsR() then return end
 	
-	if Orbwalker.GetMode() == "Combo" then
-	
-		if Menu.Get("Combo.UseQ") then
-			local target = Orbwalker.GetTarget() or TS:GetTarget(spells._Q.Range + Player.BoundingRadius, true)
-			if target then
-				CastQ(target,Menu.Get("Combo.QHC"))
-			end
-		end
-		if Menu.Get("Combo.UseW") then
-			local target = Orbwalker.GetTarget() or TS:GetTarget(spells._W.Range + Player.BoundingRadius, true)
-			if target then
-				CastW(target,Menu.Get("Combo.WHC"))
-			end
-		end
-		if Menu.Get("CE") then
-			local target = Orbwalker.GetTarget() or TS:GetTarget(spells._E.Range + Player.BoundingRadius, true)
-			if target then
-				CastE(target,Menu.Get("Combo.EHC"))
-			end
-		end
-		
-	elseif Orbwalker.GetMode() == "Harass" then
-	
-		if Menu.Get("HQ") then
-			local target = Orbwalker.GetTarget() or TS:GetTarget(spells._Q.Range + Player.BoundingRadius, true)
-			if target then
-				CastQ(target,Menu.Get("Combo.QHC"))
-			end
-		end
-		if Menu.Get("HW") then
-			local target = Orbwalker.GetTarget() or TS:GetTarget(spells._W.Range + Player.BoundingRadius, true)
-			if target then
-				CastW(target,Menu.Get("Combo.WHC"))
-			end
-		end	
-	elseif Orbwalker.GetMode() == "Waveclear" then
+	if Orbwalker.GetMode() == "Waveclear" then
 		local minionsInRange = {}
-        do -- Llenar la variable con los minions en rango
-           Veigar.GetMinionsQ(minionsInRange, "enemy")       
-           sort(minionsInRange, function(a, b) return a.MaxHealth > b.MaxHealth end)
-        end
-        Veigar.FarmLogic(minionsInRange)
-		Waveclear()
+	do
+		Veigar.GetMinionsQ(minionsInRange, "enemy")
+		sort(minionsInRange, function(a,b) return a.MaxHealth > b.MaxHealth end)
 	end
-end
+	Veigar.FarmLogic(minionsInRange)
+		Veigar.Waveclear()
+	end
 	
-function CastQ(target,hitChance)
-	if Player:GetSpellState(Enums.SpellSlots.Q) == SpellStates.Ready then
-		local targetAI = target.AsAI
-		local qPred = Prediction.GetPredictedPosition(targetAI, spells._Q, Player.Position)
-		if qPred and qPred.HitChance >= hitChance then
-			Input.Cast(SpellSlots.Q, qPred.CastPosition)
+	local ModeToExecute = Veigar[Orbwalker.GetMode()]
+    if ModeToExecute then
+        ModeToExecute()
+    end
+	if Veigar.BurstMode() then return end
+end
+
+function Veigar.ComboLogic(mode)
+    if Veigar.IsEnabledAndReady("Q", mode) then
+        local qChance = Menu.Get(mode .. ".QHC")
+        for k, qTarget in ipairs(Veigar.GetTargets(spells.Q.Range)) do
+            if spells.Q:CastOnHitChance(qTarget, qChance) then
+                return
+            end
+        end
+    end
+	if Veigar.IsEnabledAndReady("W", mode) then
+		local wChance = Menu.Get(mode .. ".WHC")
+		for k, wTarget in ipairs(Veigar.GetTargets(spells.W.Range)) do
+			if spells.W:CastOnHitChance(wTarget, wChance) then
+				return
+			end
+		end
+	end
+	if Veigar.IsEnabledAndReady("E", mode) then
+		local eChance = Menu.Get(mode .. ".EHC")
+		for k, eTarget in ipairs(Veigar.GetTargets(spells.E.Range)) do
+			if spells.E:CastOnHitChance(eTarget, eChance) then
+				return
+			end
+		end
+	end
+	if Veigar.IsEnabledAndReady("R", mode) then
+		for k, rTarget in ipairs(Veigar.GetTargets(spells.R.Range + Player.BoundingRadius)) do
+			local RDmg = Veigar.Rdmg()
+			local ksHealth = spells.R:GetKillstealHealth(rTarget)
+			if RDmg > ksHealth and spells.R:Cast(rTarget) then
+				return
+			end
 		end
 	end
 end
-
-function CastW(target,hitChance)
-	if Player:GetSpellState(Enums.SpellSlots.W) == SpellStates.Ready then
-		local targetAI = target.AsAI
-		local wPred = Prediction.GetPredictedPosition(targetAI, spells._W, Player.Position)
-		if wPred and wPred.HitChance >= hitChance then
-			Input.Cast(SpellSlots.W, wPred.CastPosition)
+function Veigar.HarassLogic(mode)
+	local Man = Player.Mana / Player.MaxMana * 100
+	local SlM = Menu.Get("Harass.Mana")
+	if SlM > Man then
+	return
+	end
+	if Veigar.IsEnabledAndReady("Q", mode) then
+		local qChance = Menu.Get("Combo.QHC")
+		for k, qTarget in ipairs(Veigar.GetTargets(spells.Q.Range)) do
+			if spells.Q:CastOnHitChance(qTarget, qChance)then
+				return
+			end
 		end
 	end
-end
-
-function CastE(target,hitChance)
-	if Player:GetSpellState(Enums.SpellSlots.E) == SpellStates.Ready then
-		local targetAI = target.AsAI
-		local ePred = Prediction.GetPredictedPosition(targetAI, spells._E, Player.Position)
-		if ePred and ePred.HitChance >= hitChance then
-			Input.Cast(SpellSlots.E, ePred.CastPosition)
+	if Veigar.IsEnabledAndReady("W", mode) then
+		local wChance = Menu.Get("Combo.WHC")
+		for k, wTarget in ipairs(Veigar.GetTargets(spells.W.Range)) do
+			if spells.W:CastOnHitChance(wTarget, wChance)then
+				return
+			end
 		end
 	end
 end
 
 function Veigar.KsQ()
 	if Menu.Get("KillSteal.Q") then
-	for k, qTarget in ipairs(TS:GetTargets(spells._Q.Range, true)) do
+		for k, qTarget in ipairs(TS:GetTargets(spells.Q.Range, true)) do
 		local qDmg = DmgLib.CalculateMagicalDamage(Player, qTarget, Veigar.Qdmg())
-		local ksHealth = spells._Q:GetKillstealHealth(qTarget)
-		if qDmg > ksHealth and spells._Q:Cast(qTarget) then
-			return
+		local ksHealth = spells.Q:GetKillstealHealth(qTarget)
+			if qDmg > ksHealth and spells.Q:Cast(qTarget) then
+				return
+			end
 		end
 	end
-  end
 end
 
 function Veigar.KsW()
 	if Menu.Get("KillSteal.W") then
-	for k, wTarget in ipairs(TS:GetTargets(spells._W.Range, true)) do
+		for k, wTarget in ipairs(TS:GetTargets(spells.W.Range, true)) do
 		local wDmg = DmgLib.CalculateMagicalDamage(Player, wTarget, Veigar.Wdmg())
-		local ksHealth = spells._W:GetKillstealHealth(wTarget)
-		if wDmg > ksHealth and spells._W:Cast(wTarget) then
-			return
+		local ksHealth = spells.W:GetKillstealHealth(wTarget)
+			if wDmg > ksHealth and spells.W:Cast(wTarget) then
+				return
+			end
 		end
 	end
-  end
 end
 
 function Veigar.KsR()
 	if Menu.Get("KillSteal.R") then
-	for k, rTarget in ipairs(TS:GetTargets(spells._R.Range, true)) do
+		for k, rTarget in ipairs(TS:GetTargets(spells.R.Range, true)) do
 		local rDmg = DmgLib.CalculateMagicalDamage(Player, rTarget, Veigar.Rdmg())
-		local ksHealth = spells._R:GetKillstealHealth(rTarget)
-		if rDmg > ksHealth and spells._R:Cast(rTarget) then
-			return
+		local ksHealth = spells.R:GetKillstealHealth(rTarget)
+			if rDmg > ksHealth and spells.R:Cast(rTarget) then
+				return
+			end
 		end
 	end
-  end
 end
 
-function Waveclear()
+function Veigar.OnDraw() 
+if Menu.Get("Draw.Q.Enabled") then
+        Renderer.DrawCircle3D(Player.Position, spells.Q.Range, 25, 2, Menu.Get("Draw.Q.Color"))
+    end
+    if Menu.Get("Draw.W.Enabled") then
+        Renderer.DrawCircle3D(Player.Position, spells.W.Range, 25, 2, Menu.Get("Draw.W.Color"))
+    end
+	if Menu.Get("Draw.E.Enabled") then
+        Renderer.DrawCircle3D(Player.Position, spells.E.Range, 25, 2, Menu.Get("Draw.E.Color"))
+    end
+	if Menu.Get("Draw.R.Enabled") then
+        Renderer.DrawCircle3D(Player.Position, spells.R.Range, 25, 2, Menu.Get("Draw.R.Color"))
+    end
+end
+
+function Veigar.Combo()  Veigar.ComboLogic("Combo")  end
+function Veigar.Harass() Veigar.HarassLogic("Harass") end
+
+function Veigar.BurstMode()
+    if Menu.Get("Combo.Burst") then
+        local FullBurst = Veigar.BurstCombo()
+        for k,target in ipairs(Veigar.GetTargets(600)) do
+            local Burst = DmgLib.CalculateMagicalDamage(Player, target, FullBurst)
+            local health = spells.R:GetKillstealHealth(target)
+            if Burst > health then
+                if spells.Q:IsReady() and spells.Q:Cast(target) then
+                end
+                if spells.W:IsReady() and spells.W:Cast(target) then
+                end
+                if spells.R:IsReady() and spells.R:Cast(target)then
+                end
+            end
+        end
+    end
+end
+
+function Veigar.Waveclear()
 
 	local pPos, pointsQ, pointsW = Player.Position, {}, {}
 		
@@ -268,8 +319,8 @@ function Waveclear()
 	for k, v in pairs(ObjManager.Get("enemy", "minions")) do
 		local minion = v.AsAI
 		if ValidMinion(minion) then
-			local posW = minion:FastPrediction(spells._W.Delay)
-			if posW:Distance(pPos) < spells._W.Range and minion.IsTargetable then
+			local posW = minion:FastPrediction(spells.W.Delay)
+			if posW:Distance(pPos) < spells.W.Range and minion.IsTargetable then
 				table.insert(pointsW, posW)
 			end 
 		end    
@@ -280,70 +331,54 @@ function Waveclear()
 		for k, v in pairs(ObjManager.Get("neutral", "minions")) do
 			local minion = v.AsAI
 			if ValidMinion(minion) then
-				local posQ = minion:FastPrediction(spells._Q.Delay)
-				local posW = minion:FastPrediction(spells._W.Delay)
-				if posQ:Distance(pPos) < spells._Q.Range then
+				local posQ = minion:FastPrediction(spells.Q.Delay)
+				local posW = minion:FastPrediction(spells.W.Delay)
+				if posQ:Distance(pPos) < spells.Q.Range then
 					table.insert(pointsQ, posQ)
 				end
-				if posW:Distance(pPos) < spells._W.Range then
+				if posW:Distance(pPos) < spells.W.Range then
 					table.insert(pointsW, posW)
 				end     
 			end
 		end
 	end
 	
-	local bestPosQ, hitCountQ = spells._Q:GetBestLinearCastPos(pointsQ)
+	local bestPosQ, hitCountQ = spells.Q:GetBestLinearCastPos(pointsQ)
 	if bestPosQ and hitCountQ >= Menu.Get("Wave.CastQHC")
-		and spells._Q:IsReady() and Menu.Get("Wave.UseQ") then
-		spells._Q:Cast(bestPosQ)
+		and spells.Q:IsReady() and Menu.Get("Wave.UseQ") then
+		spells.Q:Cast(bestPosQ)
     end
-	local bestPosW, hitCountW = spells._W:GetBestCircularCastPos(pointsW)
+	local bestPosW, hitCountW = spells.W:GetBestCircularCastPos(pointsW)
 	if bestPosW and hitCountW >= Menu.Get("Wave.CastWHC")
-		and spells._W:IsReady() and Menu.Get("Wave.UseW") then
-		spells._W:Cast(bestPosW)
+		and spells.W:IsReady() and Menu.Get("Wave.UseW") then
+		spells.W:Cast(bestPosW)
+    end
+end
+
+function Veigar.GetMinionsQ(t, team_lbl)
+    if Menu.Get("QL") then
+        for k, v in pairs(ObjManager.Get(team_lbl, "minions")) do
+            local minion = v.AsAI
+            local minionInRange = minion and minion.MaxHealth > 6 and spells.Q:IsInRange(minion)
+            local shouldIgnoreMinion = minion and (Orbwalker.IsLasthitMinion(minion) or Orbwalker.IsIgnoringMinion(minion))
+            if minionInRange and not shouldIgnoreMinion and minion.IsTargetable then
+                insert(t, minion)
+            end                       
+        end
     end
 end
 
 function Veigar.FarmLogic(minions)
-	local qqDmg = Veigar.Qdmg()
-	for k, minion in ipairs(minions) do
-	local healthPred = spells._Q:GetHealthPred(minion)
-	local qDmg = DmgLib.CalculateMagicalDamage(Player, minion, qqDmg)
-	if healthPred > 0 and healthPred < qDmg and spells._Q:Cast(minion) then
-	
-		return true
-	end
-  end
-end
+    local rawDmg = Veigar.Qdmg()
+    for k, minion in ipairs(minions) do
+        local healthPred = spells.Q:GetHealthPred(minion)
+        local qDmg = DmgLib.CalculateMagicalDamage(Player, minion, rawDmg)
+        if healthPred > 0 and healthPred < qDmg and spells.Q:Cast(minion) then
 
-function Veigar.GetMinionsQ(t, team_lbl)
-	if Menu.Get("QL") then
-		for k,v in pairs(ObjManager.Get(team_lbl, "minions")) do
-			local minion = v.AsAI
-            local minionInRange = minion and minion.MaxHealth > 6 and spells._Q:IsInRange(minion)
-			local shouldIgnoreMinion = minion and (Orbwalker.IsLasthitMinion(minion) or Orbwalker.IsIgnoringMinion(minion))
-			if minionInRange and not shouldIgnoreMinion and minion.IsTargetable then
-				insert(t, minion)
-			end
-		end
-	end
+            return true
+        end                       
+    end    
 end
-
-function Veigar.OnDraw() 
-if Menu.Get("Draw.Q.Enabled") then
-        Renderer.DrawCircle3D(Player.Position, spells._Q.Range, 25, 2, Menu.Get("Draw.Q.Color"))
-    end
-    if Menu.Get("Draw.W.Enabled") then
-        Renderer.DrawCircle3D(Player.Position, spells._W.Range, 25, 2, Menu.Get("Draw.W.Color"))
-    end
-	if Menu.Get("Draw.E.Enabled") then
-        Renderer.DrawCircle3D(Player.Position, spells._E.Range, 25, 2, Menu.Get("Draw.E.Color"))
-    end
-	if Menu.Get("Draw.R.Enabled") then
-        Renderer.DrawCircle3D(Player.Position, spells._R.Range, 25, 2, Menu.Get("Draw.R.Color"))
-    end
-end
-
 
 function OnLoad()
     if Player.CharName == "Veigar" then
