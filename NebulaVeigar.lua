@@ -1,5 +1,5 @@
 --[[
-    Made by Akane  
+    Made by Akane  V1.0
 ]]
 
 require("common.log")
@@ -66,7 +66,6 @@ function Veigar.LoadMenu()
             Menu.Checkbox("Combo.UseE", "Use E", true)
 			Menu.Slider("Combo.EHC", "E Hit Chance", 0.60, 0, 1, 0.05)
 			Menu.Checkbox("Combo.UseR", "Use R", true)
-			Menu.Checkbox("Combo.Burst", "Burst Combo", false)
 			
             Menu.NextColumn()
 
@@ -136,21 +135,16 @@ end
 
 function Veigar.Qdmg()
 	return (80 + (spells.Q:GetLevel() - 1) * 40) + (0.6 * Player.TotalAP)
-end
+end 
 
 function Veigar.Wdmg()
 	return (100 + (spells.W:GetLevel() - 1) * 50) + (1 * Player.TotalAP)
 end
 
-function Veigar.Rdmg()
-	return (175 + (spells.W:GetLevel() - 1) * 75) + (0.75 * Player.TotalAP)
-end
-
-function Veigar.BurstCombo()
-	local QBurst = Veigar.Qdmg()
-	local WBurst = Veigar.Wdmg()
-	local RBurst = Veigar.Rdmg()
-	return QBurst + WBurst + RBurst
+function Veigar.Rdmg(target)
+	local missingHealthPercent = (1 - target.Health / target.MaxHealth) * 100;
+    local totalIncreasement = 1 + 1.5 * missingHealthPercent / 100;
+	return ((175 + (spells.R:GetLevel() - 1) * 75) + (0.75 * Player.TotalAP)) * totalIncreasement
 end
 
 function Veigar.OnTick()
@@ -177,7 +171,6 @@ function Veigar.OnTick()
     if ModeToExecute then
         ModeToExecute()
     end
-	if Veigar.BurstMode() then return end
 end
 
 function Veigar.ComboLogic(mode)
@@ -207,7 +200,7 @@ function Veigar.ComboLogic(mode)
 	end
 	if Veigar.IsEnabledAndReady("R", mode) then
 		for k, rTarget in ipairs(Veigar.GetTargets(spells.R.Range + Player.BoundingRadius)) do
-			local RDmg = Veigar.Rdmg()
+			local RDmg = Veigar.Rdmg(rTarget)
 			local ksHealth = spells.R:GetKillstealHealth(rTarget)
 			if RDmg > ksHealth and spells.R:Cast(rTarget) then
 				return
@@ -266,7 +259,7 @@ end
 function Veigar.KsR()
 	if Menu.Get("KillSteal.R") then
 		for k, rTarget in ipairs(TS:GetTargets(spells.R.Range, true)) do
-		local rDmg = DmgLib.CalculateMagicalDamage(Player, rTarget, Veigar.Rdmg())
+		local rDmg = DmgLib.CalculateMagicalDamage(Player, rTarget, Veigar.Rdmg(rTarget))
 		local ksHealth = spells.R:GetKillstealHealth(rTarget)
 			if rDmg > ksHealth and spells.R:Cast(rTarget) then
 				return
@@ -292,24 +285,6 @@ end
 
 function Veigar.Combo()  Veigar.ComboLogic("Combo")  end
 function Veigar.Harass() Veigar.HarassLogic("Harass") end
-
-function Veigar.BurstMode()
-    if Menu.Get("Combo.Burst") then
-        local FullBurst = Veigar.BurstCombo()
-        for k,target in ipairs(Veigar.GetTargets(600)) do
-            local Burst = DmgLib.CalculateMagicalDamage(Player, target, FullBurst)
-            local health = spells.R:GetKillstealHealth(target)
-            if Burst > health then
-                if spells.Q:IsReady() and spells.Q:Cast(target) then
-                end
-                if spells.W:IsReady() and spells.W:Cast(target) then
-                end
-                if spells.R:IsReady() and spells.R:Cast(target)then
-                end
-            end
-        end
-    end
-end
 
 function Veigar.Waveclear()
 
