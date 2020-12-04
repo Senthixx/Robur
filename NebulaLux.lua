@@ -277,7 +277,7 @@ function Waveclear()
 		end
 	end
 	
-	if #pointsQ == 0 or pointsW == 0 then
+	if #pointsQ == 0 or pointsE == 0 then
 		for k, v in pairs(ObjManager.Get("neutral", "minions")) do
 			local minion = v.AsAI
 			if ValidMinion(minion) then
